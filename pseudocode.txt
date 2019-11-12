@@ -1,0 +1,237 @@
+/** PSY1210 Experimental Pseudocode
+* By Rebekah Gelpi
+* This pseudocode describes the hierarchy and design of a behavioural task investigating
+* people's loyalty to groups that have rejected them, as well as to groups that are initially
+* less accepting but are more accepting than the groups that subsequently reject them.
+* Participants can choose a prosocial, cooperative option that will tend to maximize the
+* team's reward, or a selfish option that maximizes one's own score at the cost of another's.
+* Participants will be scored on their likelihood of choosing the cooperative and selfish
+* option with each group, and will additionally be presented with a questionnaire after the
+* conclusion of the experiment that uses measures of loyalty, betrayal, and loneliness.
+*/
+
+players = {'you', 'playerTeam', 'otherTeam'}
+
+exposureTrials = 5
+taskTrials = 20
+
+//Reward matrix components for two options: Option A (cooperate) and Option B (defect)
+cooperateSelfReward = {1,2,5}
+cooperateOtherReward = {5,10,15}
+
+defectSelfReward = {5,10,15}
+defectOtherReward = {-5,-10,-15}
+
+blockOrder = {'introduction', 'exposure', 'task'}
+
+//A simulated 'reaction time' (M = 10000 ms, SD = 1000) for computer players to select their choices
+computerRT = function() { return rnorm(10000,1000,1)[0] }
+
+introduction = block { 
+
+	print("In this task you will be playing a game either with your team members or with members of another team.")
+	print("Every time it's your turn, you will get to choose one of two options.")
+	print("The people you play against will also be playing, and they will get to pick one of the two options as well.")
+	print("Here is a sample of possible options that you or the people you are playing with might receive:")
+	
+	sampleCoopSelf = function() { return uniformDraw(cooperateSelfReward) }
+	sampleCoopOther = function() { return uniformDraw(cooperateOtherReward) }
+	sampleDefectSelf = function() { return uniformDraw(defectSelfReward) }
+	sampleDefectOther = function() { return uniformDraw(defectOtherReward) }
+	
+	t1 = table {
+		rows: 2,
+		cols: 5,
+		data: {
+			{'Option A:', 'Yourself', sampleCoopSelf, 'Your teammate', sampleCoopOther}, 
+			{'Option B:', 'Yourself', sampleDefectSelf, 'Your teammate', sampleDefectOther}
+			}
+		}
+		
+	t1.show()
+	print("Let's do a few examples.")
+	print("In this table, if you select Option A, how many points will you receive?")
+	input = getInputFromForm()
+	if (t1.data[0][2] == input) { print("Correct!") } else { print("Sorry, the correct answer is " + t1.data[0][2] + ".") }
+	t1.hide()
+	
+	//A second sample table with resampled values for cooperation and defection options.
+	t2 = table {
+		rows: 2,
+		cols: 5,
+		data: {
+			{'Option A:', 'Yourself', sampleCoopSelf, 'Your teammate', sampleCoopOther}, 
+			{'Option B:', 'Yourself', sampleDefectSelf, 'Your teammate', sampleDefectOther}
+			}
+		}
+	
+	t2.show()
+	print("In this table, if you select Option B, how many points will your teammates receive?")
+	input = getInputFromForm()
+	if (t1.data[1][4] == input) { print("Correct!") } else { print("Sorry, the correct answer is " + t1.data[1][4] + ".") }
+	t2.hide()
+}
+
+exposure = block {
+
+	print("First the other players are going to play.")
+	
+	exposureTrial = trial {
+		//Player 1 and the other players must be computer players in the exposure, but they can belong to either the player's team or the other team.
+		p1 = uniformDraw(players[1:2])
+		p2 = uniformDraw(players[1:2])
+		playingAgainst = {p2, p2, p2, p2} //Player 1 plays against four others.
+		
+		//Initialize the score outcomes for the trial.
+		p1.giveToSelf = 0
+		p1.giveToOthers = 0
+		p2.giveToSelf = 0
+		p2.giveToOthers = 0
+		
+		exposureTable = table {
+			rows: 2,
+			cols: 5,
+			data: {
+				{'Option A:', 'Yourself', sampleCoopSelf, 'Your teammate', sampleCoopOther}, 
+				{'Option B:', 'Yourself', sampleDefectSelf, 'Your teammate', sampleDefectOther}
+				}
+			}		
+				
+		exposureTable.show()
+		wait(computerRT())
+		
+		//When computer players are on the same team, they will cooperate with 100% frequency. Otherwise, they will cooperate with 50% frequency.
+		if (p1 == p2) { 
+			for (player in playingAgainst) {
+				p1.giveToSelf += exposureTable.data[0][2]
+				p1.giveToOthers += exposureTable.data[0][4]
+				p2.giveToSelf += exposureTable.data[0][2]
+				p2.giveToOthers += exposureTable.data[0][4]
+				}
+			}
+		//Flip a coin for each player to determine whether to cooperate if they are on different teams.
+		else {
+			for (player in playingAgainst) {
+				flip() ?
+				p1.giveToSelf += exposureTable.data[0][2]
+				p1.giveToOthers += exposureTable.data[0][4]
+				:
+				p1.giveToSelf += exposureTable.data[1][2]
+				p1.giveToOthers += exposureTable.data[1][4]
+				flip() ?
+				p2.giveToSelf += exposureTable.data[0][2]
+				p2.giveToOthers += exposureTable.data[0][4]
+				:
+				p2.giveToSelf += exposureTable.data[1][2]
+				p2.giveToOthers += exposureTable.data[1][4]
+				}
+			}
+	
+		exposureTable.hide()
+		print("Player 1 gave themselves " + p1.giveToSelf + " points and other players" + p1.giveToOthers + " points.")
+		print("The other players gave Player 1 " + p2.giveToOthers + " points and themselves" + p2.giveToSelf + " points.")	}
+	}
+	
+	play(exposureTrial,exposureTrials) //Run the trial function 5 times total.	
+}
+
+taskBlock = block {
+
+	print("Now it's your turn to play the game.")
+	
+	//initialize the task order 
+	tasksCompleted = 0
+	
+	taskTrial = trial {
+		p1 = 'you'
+		p2 = uniformDraw(players[1:2])
+		playingAgainst = {p2, p2, p2, p2} //Player 1 plays against four others.
+		
+		//Initialize the score outcomes for the trial.
+		p1.giveToSelf = 0
+		p1.giveToOthers = 0
+		p2.giveToSelf = 0
+		p2.giveToOthers = 0
+		
+		taskTable = table {
+			rows: 2,
+			cols: 5,
+			data: {
+				{'Option A:', 'Yourself', sampleCoopSelf, 'Your teammate', sampleCoopOther}, 
+				{'Option B:', 'Yourself', sampleDefectSelf, 'Your teammate', sampleDefectOther}
+				}
+			}		
+		
+		taskTable.show()
+		
+		print("Which option do you want to take?")
+		
+		choiceTable = table {
+			rows: 4,
+			cols: 3,
+			data: {
+				{'Player 1', 'Option A', 'Option B'},
+				{'Player 2', 'Option A', 'Option B'},
+				{'Player 3', 'Option A', 'Option B'},
+				{'Player 4', 'Option A', 'Option B'}
+				}	
+			}
+		choiceTable.onHover(choiceTable.cell.color = #dddd00) //Highlight the cells when they are hovered over.
+		choiceTable.clickable(choiceTable.data[0:3][1:2])
+		for (row in choiceTable.data[0:3]) {
+			//Select the correct choice of Coop vs. Defect in the taskTable
+			clickBinaryChoice(row[1], row[2]).onClick(choiceTable.cell.color = #0000dd, p1.giveToSelf += taskTable.data[chosenX][chosenY], p1.giveToOthers += taskTable.data[chosenX][chosenY])
+			playerRT = collectPlayerRT()
+			}
+		
+		//If the player is in the early stages, the player's team will cooperate, and the other team will choose at random.
+		if (tasksCompleted < 5) {
+			if (p1 == p2) { 
+				for (player in playingAgainst) {
+					p2.giveToSelf += taskTable.data[0][2]
+					p2.giveToOthers += taskTable.data[0][4]
+					}
+				}
+			else {
+				for (player in playingAgainst) {
+					flip() ?
+					p2.giveToSelf += exposureTable.data[0][2],
+					p2.giveToOthers += exposureTable.data[0][4]
+					:
+					p2.giveToSelf += exposureTable.data[1][2],
+					p2.giveToOthers += exposureTable.data[1][4]
+					}			
+				}			
+			}
+		//Later in the game, the player's team will always reject them. The other team will more often cooperate (75% probability).
+		else {
+			if (p1 == p2) { 
+				for (player in playingAgainst) {
+					p2.giveToSelf += taskTable.data[1][2]
+					p2.giveToOthers += taskTable.data[1][4]
+					}
+				}
+			else {
+				for (player in playingAgainst) {
+					flip(0.75) ?
+					p2.giveToSelf += exposureTable.data[0][2],
+					p2.giveToOthers += exposureTable.data[0][4]
+					:
+					p2.giveToSelf += exposureTable.data[1][2],
+					p2.giveToOthers += exposureTable.data[1][4]
+					}			
+				}			
+			}
+		
+		totalRT = greater(playerRT, computerRT())
+		wait(totalRT)
+		
+		taskTable.hide()
+		print("You gave yourself " + p1.giveToSelf + " points and other players" + p1.giveToOthers + " points.")
+		print("The other players gave you " + p2.giveToOthers + " points and themselves" + p2.giveToSelf + " points.")
+		tasksCompleted += 1
+		}	
+		
+	play(taskTrial,taskTrials) //Run the trial function 20 times total.
+
+}		
